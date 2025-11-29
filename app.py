@@ -1,6 +1,6 @@
 import os
 import logging
-from flask import Flask, request, render_template_string
+from flask import Flask, request
 from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import TelegramError
 
@@ -17,16 +17,7 @@ bot = Bot(token=TOKEN)
 
 @app.route("/")
 def index():
-    return render_template_string("""
-<!DOCTYPE html>
-<html>
-<head><title>Tiến Lên Bot</title></head>
-<body>
-<h1>🎮 Tiến Lên Bot Live!</h1>
-<a href="/setwebhook">Set Webhook</a>
-</body>
-</html>
-    """)
+    return "<h1>🚀 Tiến Lên Bot Live!</h1><a href='/setwebhook'>Set Webhook</a>"
 
 @app.route("/setwebhook")
 def set_webhook():
@@ -34,9 +25,11 @@ def set_webhook():
     try:
         ok = bot.set_webhook(url=url)
         if ok:
-            return f"<h1>✅ WEBHOOK OK: {url}</h1><a href='/'>Home</a>"
+            return f"<h1>✅ WEBHOOK SET: {url}</h1>"
         else:
             return "<h1>❌ Webhook False</h1>"
+    except TelegramError as e:
+        return f"<h1>❌ TelegramError: {e}</h1>"
     except Exception as e:
         return f"<h1>❌ Error: {e}</h1>"
 
@@ -44,9 +37,14 @@ def set_webhook():
 def webhook():
     try:
         data = request.get_json(force=True)
-        update = Update.de_json(data, bot)
+        if not data:
+            return "No data", 200
         
-        if update and update.message:
+        update = Update.de_json(data, bot)
+        if not update:
+            return "Invalid update", 200
+        
+        if update.message:
             chat_id = update.message.chat.id
             text = update.message.text or ""
             
