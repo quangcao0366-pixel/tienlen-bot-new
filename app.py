@@ -1,86 +1,63 @@
+from flask import Flask, request
 import os
 import logging
-from flask import Flask, request, render_template
-from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
-from telegram.error import TelegramError
+from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Dispatcher, CommandHandler, MessageHandler, Filters
 
-# Cấu hình logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Disable telegram logging
+logging.getLogger("telegram").setLevel(logging.WARNING)
 
-app = Flask(__name__, static_folder="static", template_folder="templates")
+app = Flask(__name__)
 
-# TOKEN từ env var
-TOKEN = os.environ.get("TOKEN")
-if not TOKEN:
-    raise RuntimeError("❌ TOKEN environment variable not set!")
-
+# Get token from environment
+TOKEN = os.getenv('TOKEN')
 bot = Bot(token=TOKEN)
 
-@app.route("/")
-def index():
-    return render_template("index.html")
-
-@app.route("/setwebhook")
-def set_webhook():
-    url = f"https://{request.host}/webhook"
-    try:
-        logger.info(f"🔗 Setting webhook to: {url}")
-        ok = bot.set_webhook(url=url)
-        if ok:
-            return f"""
-            <h1>✅ WEBHOOK SET THÀNH CÔNG!</h1>
-            <p><strong>URL:</strong> <code>{url}</code></p>
-            <h3>📱 TEST BOT:</h3>
-            <ol>
-                <li>Mở Telegram</li>
-                <li>Tìm bot của bạn</li>
-                <li>Gửi <code>/start</code></li>
-                <li>Bấm "Chơi Tiến Lên"</li>
-            </ol>
-            <p><em>🎉 Bot đã live 24/7!</em></p>
-            """
-        else:
-            return "<h1>❌ Webhook failed</h1>"
-    except Exception as e:
-        return f"<h1>❌ Error: {e}</h1>"
-
-@app.route("/webhook", methods=["POST"])
+# Simple webhook handler
+@app.route('/webhook', methods=['POST'])
 def webhook():
+    update = Update.de_json(request.get_json(force=True), bot)
+    dp.process_update(update)
+    return 'ok'
+
+# Start command
+def start(update, context):
+    keyboard = [[InlineKeyboardButton("🎮 Chơi Tiến Lên", web_app={"url": "https://tienlen-miniapp.netlify.app"})]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    update.message.reply_text(
+        "🎉 **CHÀO BẠN ĐẾN VỚI TIẾN LÊN BOT!**\n\n"
+        "👆 Bấm nút bên dưới để **chơi Tiến Lên Miền Nam** ngay!\n\n"
+        "✨ Game mượt, giao diện đẹp, chơi với bạn bè!",
+        reply_markup=reply_markup,
+        parse_mode='Markdown'
+    )
+
+# Unknown command
+def unknown(update, context):
+    update.message.reply_text("🎮 Gõ `/start` để bắt đầu chơi Tiến Lên Miền Nam!")
+
+# Initialize dispatcher
+dp = Dispatcher(bot, None, workers=0)
+dp.add_handler(CommandHandler("start", start))
+dp.add_handler(MessageHandler(Filters.command, unknown))
+
+@app.route('/')
+def index():
+    return "🚀 Tiến Lên Bot is running!"
+
+@app.route('/setwebhook')
+def set_webhook():
+    url = request.url_root + 'webhook'
     try:
-        data = request.get_json(force=True)
-        update = Update.de_json(data, bot)
-        
-        if update and update.message:
-            chat_id = update.message.chat.id
-            text = update.message.text or ""
-            
-            if text == "/start":
-                keyboard = [[InlineKeyboardButton("🎮 Chơi Tiến Lên", web_app=WebAppInfo(url="https://tienlen-miniapp.netlify.app"))]]
-                reply_markup = InlineKeyboardMarkup(keyboard)
-                bot.send_message(
-                    chat_id=chat_id,
-                    text="🎉 **CHÀO BẠN ĐẾN VỚI TIẾN LÊN BOT!**\n\n"
-                         "👆 Bấm nút bên dưới để **chơi Tiến Lên Miền Nam** ngay!\n\n"
-                         "✨ Game mượt, giao diện đẹp, chơi với bạn bè!",
-                    reply_markup=reply_markup,
-                    parse_mode='Markdown'
-                )
-            else:
-                bot.send_message(
-                    chat_id=chat_id,
-                    text="🎮 Gõ `/start` để bắt đầu chơi Tiến Lên Miền Nam!"
-                )
-                
+        bot.set_webhook(url=url)
+        return f"✅ WEBHOOK SET: {url}"
     except Exception as e:
-        logger.exception("Webhook error")
-    
-    return "OK", 200
+        return f"❌ WEBHOOK ERROR: {e}"
 
-@app.route("/health")
+@app.route('/health')
 def health():
-    return "Bot is healthy!", 200
+    return "OK"
 
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=False)
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
