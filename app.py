@@ -4,20 +4,17 @@ from flask import Flask, request, render_template_string
 from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import TelegramError
 
-# Logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-# Token
 TOKEN = os.environ.get("TOKEN")
 if not TOKEN:
     raise RuntimeError("TOKEN not set!")
 
 bot = Bot(token=TOKEN)
 
-# Index
 @app.route("/")
 def index():
     return render_template_string("""
@@ -31,7 +28,6 @@ def index():
 </html>
     """)
 
-# Set webhook
 @app.route("/setwebhook")
 def set_webhook():
     url = f"https://{request.host}/webhook"
@@ -44,7 +40,6 @@ def set_webhook():
     except Exception as e:
         return f"<h1>❌ Error: {e}</h1>"
 
-# Webhook endpoint
 @app.route("/webhook", methods=["POST"])
 def webhook():
     try:
