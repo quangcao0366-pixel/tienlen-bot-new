@@ -2,15 +2,19 @@ import os
 import logging
 from flask import Flask, request, render_template
 from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
+from telegram.error import TelegramError
 
+# Cấu hình logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 
-# TOKEN TELEGRAM CỦA BẠN
-TOKEN = os.environ.get("TOKEN", "8324573152:AAGkfklkdCvYpjkGTYKFGzA8L2M9JFzNxug")
+# TOKEN từ env var
+TOKEN = os.environ.get("TOKEN")
+if not TOKEN:
+    raise RuntimeError("❌ TOKEN environment variable not set!")
+
 bot = Bot(token=TOKEN)
 
 @app.route("/")
@@ -73,6 +77,10 @@ def webhook():
     
     return "OK", 200
 
+@app.route("/health")
+def health():
+    return "Bot is healthy!", 200
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=True)
+    app.run(host="0.0.0.0", port=port, debug=False)
