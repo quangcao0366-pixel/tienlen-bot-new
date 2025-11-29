@@ -1,8 +1,8 @@
 import os
-from flask import Flask, request, jsonify
 import logging
+from flask import Flask, request
 from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, MessageHandler, filters
+from telegram.ext import Application
 
 # Logging
 logging.basicConfig(level=logging.INFO)
@@ -13,52 +13,68 @@ app = Flask(__name__)
 # TOKEN
 TOKEN = os.environ.get("TOKEN")
 if not TOKEN:
-    raise RuntimeError("TOKEN not set!")
+    raise RuntimeError("TOKEN environment variable not set!")
 
-# Bot
+# Create application (sync mode)
 application = Application.builder().token(TOKEN).build()
 
+# Start command handler
 async def start(update: Update, context):
     keyboard = [[InlineKeyboardButton("🎮 Chơi Tiến Lên", web_app={"url": "https://tienlen-miniapp.netlify.app"})]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(
-        "🎉 CHÀO BẠN! Bấm nút để chơi Tiến Lên Miền Nam!",
-        reply_markup=reply_markup
+        "🎉 **CHÀO BẠN ĐẾN VỚI TIẾN LÊN BOT!**\n\n"
+        "👆 Bấm nút bên dưới để **chơi Tiến Lên Miền Nam** ngay!\n\n"
+        "✨ Game mượt, giao diện đẹp, chơi với bạn bè!",
+        reply_markup=reply_markup,
+        parse_mode='Markdown'
     )
 
+# Message handler
 async def handle_message(update: Update, context):
-    await update.message.reply_text("Gõ /start để chơi!")
+    await update.message.reply_text("🎮 Gõ `/start` để bắt đầu chơi Tiến Lên Miền Nam!")
 
-# Handlers
+# Add handlers
 application.add_handler(CommandHandler("start", start))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-@app.route("/")
+@app.route('/')
 def index():
-    return "<h1>🚀 Tiến Lên Bot Live! v20</h1><a href='/health'>Health</a>"
+    return '''
+    <h1>🚀 Tiến Lên Bot v20 Live!</h1>
+    <p><a href="/health">Health Check</a> | <a href="/setwebhook">Set Webhook</a></p>
+    '''
 
-@app.route("/health")
+@app.route('/health')
 def health():
-    return jsonify({"status": "OK", "version": "v20"})
+    return {'status': 'OK', 'version': 'v20-sync', 'service': 'tienlen-bot'}
 
-@app.route("/setwebhook")
-async def set_webhook():
+@app.route('/setwebhook')
+def set_webhook():
     webhook_url = f"https://{request.host}/webhook"
-    await application.bot.set_webhook(url=webhook_url)
-    return f"<h1>✅ WEBHOOK SET v20: {webhook_url}</h1>"
+    try:
+        # Set webhook using sync method
+        application.bot.set_webhook(url=webhook_url)
+        return f'<h1>✅ WEBHOOK SET SUCCESS!</h1><p>URL: {webhook_url}</p>'
+    except Exception as e:
+        return f'<h1>❌ WEBHOOK ERROR: {str(e)}</h1>'
 
-@app.route("/webhook", methods=["POST"])
-async def webhook():
+@app.route('/webhook', methods=['POST'])
+def webhook():
     try:
         update = Update.de_json(request.get_json(force=True), application.bot)
         if update:
-            await application.process_update(update)
-        return "OK", 200
+            # Process update using async_to_sync pattern
+            import asyncio
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(application.process_update(update))
+            loop.close()
+        return 'OK'
     except Exception as e:
         logger.error(f"Webhook error: {e}")
-        return "ERROR", 500
+        return 'ERROR', 500
 
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
-    # Render requires explicit port binding
-    app.run(host="0.0.0.0", port=port)
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 10000))
+    app.run(host='0.0.0.0', port=port)
